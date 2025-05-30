@@ -15,6 +15,16 @@ function urlBase64ToUint8Array(base64String: string) {
   }
   return outputArray
 }
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return btoa(binary)
+}
+
 export function PushNotificationManager() {
     const [isSupported, setIsSupported] = useState(false)
     const [subscription, setSubscription] = useState<PushSubscription | null>(
@@ -47,8 +57,17 @@ export function PushNotificationManager() {
         ),
       })
       setSubscription(sub)
-      const serializedSub = JSON.parse(JSON.stringify(sub))
-      await subscribeUser(serializedSub)
+      
+      // Format subscription data for the server
+      const subscriptionData = {
+        endpoint: sub.endpoint,
+        keys: {
+          p256dh: arrayBufferToBase64(sub.getKey('p256dh')!),
+          auth: arrayBufferToBase64(sub.getKey('auth')!)
+        }
+      }
+      
+      await subscribeUser(subscriptionData)
     }
    
     async function unsubscribeFromPush() {
@@ -59,7 +78,14 @@ export function PushNotificationManager() {
    
     async function sendTestNotification() {
       if (subscription) {
-        await sendNotification(message)
+        const subscriptionData = {
+          endpoint: subscription.endpoint,
+          keys: {
+            p256dh: arrayBufferToBase64(subscription.getKey('p256dh')!),
+            auth: arrayBufferToBase64(subscription.getKey('auth')!)
+          }
+        }
+        await sendNotification(message, subscriptionData)
         setMessage('')
       }
     }
