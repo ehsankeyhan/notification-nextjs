@@ -3,10 +3,21 @@
 import fs from 'fs/promises'
 import path from 'path'
 
-const TOKENS_FILE = path.join(process.cwd(), 'app/data/tokens.json')
+const TOKENS_FILE = path.join(process.cwd(), 'public/tokens.json')
+
+// Ensure the tokens file exists with initial structure
+async function ensureTokensFile() {
+  try {
+    await fs.access(TOKENS_FILE)
+  } catch {
+    // File doesn't exist, create it with initial structure
+    await fs.writeFile(TOKENS_FILE, JSON.stringify({ tokens: [] }, null, 2))
+  }
+}
 
 export async function subscribeUser(token: string) {
   try {
+    await ensureTokensFile()
     const data = await fs.readFile(TOKENS_FILE, 'utf-8')
     const tokens = JSON.parse(data)
     
@@ -24,6 +35,7 @@ export async function subscribeUser(token: string) {
 
 export async function unsubscribeUser(token: string) {
   try {
+    await ensureTokensFile()
     const data = await fs.readFile(TOKENS_FILE, 'utf-8')
     const tokens = JSON.parse(data)
     
@@ -39,6 +51,7 @@ export async function unsubscribeUser(token: string) {
 
 export async function getAllTokens() {
   try {
+    await ensureTokensFile()
     const data = await fs.readFile(TOKENS_FILE, 'utf-8')
     const tokens = JSON.parse(data)
     return { success: true, tokens: tokens.tokens }
