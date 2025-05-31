@@ -66,6 +66,10 @@ export const getFCMToken = async () => {
   }
   
   try {
+    // Check if we're in Safari
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    console.log('Browser is Safari:', isSafari);
+
     // Check notification permission first
     const permission = await Notification.requestPermission();
     console.log('Notification permission status:', permission);
@@ -74,15 +78,21 @@ export const getFCMToken = async () => {
       console.log('Notification permission denied');
       return null;
     }
+
+    // Get service worker registration
+    const registration = await navigator.serviceWorker.getRegistration();
+    if (!registration) {
+      console.error('No service worker registration found');
+      return null;
+    }
     
     const currentToken = await getToken(messaging, {
       vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
-      serviceWorkerRegistration: await navigator.serviceWorker.getRegistration()
+      serviceWorkerRegistration: registration
     });
     
     if (currentToken) {
       console.log('FCM Token:', currentToken);
-      // You can send this token to your server here
     } else {
       console.log('No FCM token available');
     }
@@ -90,6 +100,14 @@ export const getFCMToken = async () => {
     return currentToken;
   } catch (error) {
     console.error('Error getting FCM token:', error);
+    // Log more detailed error information
+    if (error instanceof Error) {
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+    }
     return null;
   }
 };
