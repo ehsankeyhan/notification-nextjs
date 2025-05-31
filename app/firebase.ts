@@ -23,6 +23,13 @@ if (typeof window !== 'undefined') {
       navigator.serviceWorker.register('/firebase-messaging-sw.js')
         .then((registration) => {
           console.log('Service Worker registered with scope:', registration.scope);
+          
+          // Check if the service worker is active
+          if (registration.active) {
+            console.log('Service Worker is active');
+          } else {
+            console.log('Service Worker is not active yet');
+          }
         })
         .catch((error) => {
           console.error('Service Worker registration failed:', error);
@@ -32,11 +39,6 @@ if (typeof window !== 'undefined') {
     messaging = getMessaging(app);
     console.log('Firebase messaging initialized successfully');
     
-    // Request notification permission
-    Notification.requestPermission().then((permission) => {
-      console.log('Notification permission:', permission);
-    });
-    
     // Set up message listener
     onMessage(messaging, (payload) => {
       console.log('Message received in foreground:', payload);
@@ -45,12 +47,21 @@ if (typeof window !== 'undefined') {
       if (payload.notification) {
         const { title, body } = payload.notification;
         if (title && body) {
-          new Notification(title, {
+          const notificationOptions = {
             body,
             icon: '/icon.png',
             badge: '/icon.png',
-            tag: 'notification-1'
-          });
+            tag: 'notification-1',
+            requireInteraction: true,
+            actions: [
+              {
+                action: 'open',
+                title: 'Open'
+              }
+            ]
+          };
+          
+          new Notification(title, notificationOptions);
         }
       }
     });
@@ -70,20 +81,19 @@ export const getFCMToken = async () => {
     const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
     console.log('Browser is Safari:', isSafari);
 
-    // Check notification permission first
-    const permission = await Notification.requestPermission();
-    console.log('Notification permission status:', permission);
-    
-    if (permission !== 'granted') {
-      console.log('Notification permission denied');
-      return null;
-    }
-
     // Get service worker registration
     const registration = await navigator.serviceWorker.getRegistration();
     if (!registration) {
       console.error('No service worker registration found');
       return null;
+    }
+
+    // For Safari, ensure the service worker is active
+    if (isSafari && !registration.active) {
+      console.log('Waiting for service worker to become active...');
+      await new Promise(resolve => {
+        registration.addEventListener('activate', resolve, { once: true });
+      });
     }
     
     const currentToken = await getToken(messaging, {

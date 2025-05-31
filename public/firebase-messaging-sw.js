@@ -27,7 +27,14 @@ messaging.onBackgroundMessage((payload) => {
     icon: '/icon.png',
     badge: '/icon.png',
     tag: 'notification-1',
-    data: payload.data || {}
+    data: payload.data || {},
+    requireInteraction: true, // Keep notification visible until user interacts
+    actions: [
+      {
+        action: 'open',
+        title: 'Open'
+      }
+    ]
   };
 
   console.log('Service Worker: Showing notification:', notificationTitle);
@@ -63,12 +70,56 @@ self.addEventListener('notificationclick', function(event) {
   );
 });
 
+// Handle push event (for Safari)
+self.addEventListener('push', function(event) {
+  console.log('Service Worker: Push event received');
+  
+  if (event.data) {
+    try {
+      const data = event.data.json();
+      console.log('Service Worker: Push data:', data);
+      
+      const notificationTitle = data.notification?.title || 'New Message';
+      const notificationOptions = {
+        body: data.notification?.body || 'You have a new message',
+        icon: '/icon.png',
+        badge: '/icon.png',
+        tag: 'notification-1',
+        data: data.data || {},
+        requireInteraction: true,
+        actions: [
+          {
+            action: 'open',
+            title: 'Open'
+          }
+        ]
+      };
+
+      event.waitUntil(
+        self.registration.showNotification(notificationTitle, notificationOptions)
+          .then(() => {
+            console.log('Service Worker: Push notification shown successfully');
+          })
+          .catch(error => {
+            console.error('Service Worker: Error showing push notification:', error);
+          })
+      );
+    } catch (error) {
+      console.error('Service Worker: Error processing push data:', error);
+    }
+  }
+});
+
 // Log when the service worker is installed
 self.addEventListener('install', (event) => {
   console.log('Service Worker: Installed');
+  // Force the waiting service worker to become the active service worker
+  self.skipWaiting();
 });
 
 // Log when the service worker is activated
 self.addEventListener('activate', (event) => {
   console.log('Service Worker: Activated');
+  // Claim all clients to ensure the service worker is in control
+  event.waitUntil(clients.claim());
 }); 
