@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+import { getMessaging, getToken, onMessage, Messaging } from 'firebase/messaging';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDcXhxdqvehmZ1XRugk1gfmySx4fSfxiv4",
@@ -15,7 +15,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 // Initialize messaging only on the client side
-let messaging: any = null;
+let messaging: Messaging | null = null;
 if (typeof window !== 'undefined') {
   try {
     // Register service worker first

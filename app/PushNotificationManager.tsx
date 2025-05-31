@@ -8,7 +8,6 @@ import { onMessage } from 'firebase/messaging'
 export function PushNotificationManager() {
   const [isSupported, setIsSupported] = useState(false)
   const [token, setToken] = useState<string | null>(null)
-  const [message, setMessage] = useState('')
 
   useEffect(() => {
     if ('serviceWorker' in navigator && 'PushManager' in window) {
@@ -38,10 +37,12 @@ export function PushNotificationManager() {
     }
 
     // Handle foreground messages
-    onMessage(messaging, (payload) => {
-      console.log('Message received:', payload)
-      // You can show a custom notification here if needed
-    })
+    if (messaging) {
+      onMessage(messaging, (payload) => {
+        console.log('Message received:', payload)
+        // You can show a custom notification here if needed
+      })
+    }
   }
 
   async function unsubscribeFromPush() {
