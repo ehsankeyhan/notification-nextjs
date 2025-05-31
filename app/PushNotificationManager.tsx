@@ -1,120 +1,74 @@
 'use client'
- 
-import { useState, useEffect } from 'react'
-import { subscribeUser, unsubscribeUser, sendNotification } from './actions'
- 
-function urlBase64ToUint8Array(base64String: string) {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
- 
-  const rawData = window.atob(base64)
-  const outputArray = new Uint8Array(rawData.length)
- 
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i)
-  }
-  return outputArray
-}
 
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer)
-  let binary = ''
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i])
-  }
-  return btoa(binary)
-}
+import { useState, useEffect } from 'react'
+import { subscribeUser, unsubscribeUser } from './actions'
+import { getFCMToken, messaging } from './firebase'
+import { onMessage } from 'firebase/messaging'
 
 export function PushNotificationManager() {
-    const [isSupported, setIsSupported] = useState(false)
-    const [subscription, setSubscription] = useState<PushSubscription | null>(
-      null
-    )
-    const [message, setMessage] = useState('')
-   
-    useEffect(() => {
-      if ('serviceWorker' in navigator && 'PushManager' in window) {
-        setIsSupported(true)
-        registerServiceWorker()
-      }
-    }, [])
-   
-    async function registerServiceWorker() {
-      const registration = await navigator.serviceWorker.register('/sw.js', {
-        scope: '/',
-        updateViaCache: 'none',
-      })
-      const sub = await registration.pushManager.getSubscription()
-      setSubscription(sub)
+  const [isSupported, setIsSupported] = useState(false)
+  const [token, setToken] = useState<string | null>(null)
+  const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      setIsSupported(true)
+      initializeFCM()
     }
-   
-    async function subscribeToPush() {
-      const registration = await navigator.serviceWorker.ready
-      const sub = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(
-          process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
-        ),
-      })
-      setSubscription(sub)
+  }, [])
+
+  async function initializeFCM() {
+    try {
+      // Request notification permission first
+      const permission = await Notification.requestPermission()
+      if (permission !== 'granted') {
+        console.log('Notification permission denied')
+        return
+      }
+
+      const currentToken = await getFCMToken()
+      if (currentToken) {
+        setToken(currentToken)
+        await subscribeUser(currentToken)
+      }
+      console.log(currentToken);
       
-      // Format subscription data for the server
-      const subscriptionData = {
-        endpoint: sub.endpoint,
-        keys: {
-          p256dh: arrayBufferToBase64(sub.getKey('p256dh')!),
-          auth: arrayBufferToBase64(sub.getKey('auth')!)
-        }
-      }
-      
-      await subscribeUser(subscriptionData)
+    } catch (error) {
+      console.error('Error initializing FCM:', error)
     }
-   
-    async function unsubscribeFromPush() {
-      await subscription?.unsubscribe()
-      setSubscription(null)
-      await unsubscribeUser()
-    }
-   
-    async function sendTestNotification() {
-      if (subscription) {
-        const subscriptionData = {
-          endpoint: subscription.endpoint,
-          keys: {
-            p256dh: arrayBufferToBase64(subscription.getKey('p256dh')!),
-            auth: arrayBufferToBase64(subscription.getKey('auth')!)
-          }
-        }
-        await sendNotification(message, subscriptionData)
-        setMessage('')
-      }
-    }
-   
-    if (!isSupported) {
-      return <p>Push notifications are not supported in this browser.</p>
-    }
-   
-    return (
-      <div>
-        <h3>Push Notifications</h3>
-        {subscription ? (
-          <>
-            <p>You are subscribed to push notifications.</p>
-            <button onClick={unsubscribeFromPush}>Unsubscribe</button>
-            <input
-              type="text"
-              placeholder="Enter notification message"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-            />
-            <button onClick={sendTestNotification}>Send Test</button>
-          </>
-        ) : (
-          <>
-            <p>You are not subscribed to push notifications.</p>
-            <button onClick={subscribeToPush}>Subscribe</button>
-          </>
-        )}
-      </div>
-    )
+
+    // Handle foreground messages
+    onMessage(messaging, (payload) => {
+      console.log('Message received:', payload)
+      // You can show a custom notification here if needed
+    })
   }
+
+  async function unsubscribeFromPush() {
+    if (token) {
+      await unsubscribeUser(token)
+      setToken(null)
+    }
+  }
+
+  if (!isSupported) {
+    return <p>Push notifications are not supported in this browser.</p>
+  }
+
+  return (
+    <div>
+      <h3>Push Notifications</h3>
+      {token ? (
+        <>
+          <p>You are subscribed to push notifications.</p>
+          <button onClick={unsubscribeFromPush}>Unsubscribe</button>
+        </>
+      ) : (
+        <>
+          <p>You are not subscribed to push notifications.</p>
+          <button onClick={initializeFCM}>Subscribe</button>
+        </>
+      )}
+    </div>
+  )
+}
