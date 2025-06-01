@@ -17,55 +17,72 @@ console.log('Service Worker: Firebase initialized');
 
 const messaging = firebase.messaging();
 
+// Keep track of shown notifications to prevent duplicates
+const shownNotifications = new Set();
+
 // Handle background messages
 messaging.onBackgroundMessage((payload) => {
-  console.log('Service Worker: Received background message:', payload);
+  console.log('Received background message:', payload);
 
-  const notificationTitle = payload.notification?.title || 'New Message';
+  // Create a unique message ID
+  const messageId = payload.data?.messageId || payload.messageId || JSON.stringify(payload);
+
+  // Check if we've already shown this notification
+  if (shownNotifications.has(messageId)) {
+    console.log('Duplicate notification, skipping:', messageId);
+    return;
+  }
+
+  // Add to shown notifications
+  shownNotifications.add(messageId);
+
+  // Clean up old notifications (keep last 100)
+  if (shownNotifications.size > 100) {
+    const oldestNotification = Array.from(shownNotifications)[0];
+    shownNotifications.delete(oldestNotification);
+  }
+
+  // Customize notification here
+  const notificationTitle = payload.notification?.title || 'New Notification';
   const notificationOptions = {
-    body: payload.notification?.body || 'You have a new message',
+    body: payload.notification?.body || '',
     icon: '/icon.png',
     badge: '/icon.png',
-    tag: 'notification-1',
-    data: payload.data || {},
-    requireInteraction: true, // Keep notification visible until user interacts
+    tag: messageId, // Use messageId as tag to prevent duplicate notifications
+    requireInteraction: true,
     actions: [
       {
         action: 'open',
         title: 'Open'
       }
-    ]
+    ],
+    data: payload.data || {} // Include any additional data
   };
 
-  console.log('Service Worker: Showing notification:', notificationTitle);
-  
-  return self.registration.showNotification(notificationTitle, notificationOptions)
-    .then(() => {
-      console.log('Service Worker: Notification shown successfully');
-    })
-    .catch(error => {
-      console.error('Service Worker: Error showing notification:', error);
-    });
+  // Show the notification
+  return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
 // Handle notification click
-self.addEventListener('notificationclick', function(event) {
-  console.log('Service Worker: Notification click received');
-  
+self.addEventListener('notificationclick', (event) => {
+  console.log('Notification click received:', event);
+
   event.notification.close();
-  
+
   // This looks to see if the current is already open and focuses if it is
   event.waitUntil(
     clients.matchAll({
       type: "window"
-    }).then(function(clientList) {
-      for (let i = 0; i < clientList.length; i++) {
-        let client = clientList[i];
-        if (client.url === '/' && 'focus' in client)
+    })
+    .then((clientList) => {
+      for (const client of clientList) {
+        if (client.url === '/' && 'focus' in client) {
           return client.focus();
+        }
       }
-      if (clients.openWindow)
+      if (clients.openWindow) {
         return clients.openWindow('/');
+      }
     })
   );
 });

@@ -25,7 +25,9 @@ if (typeof window !== 'undefined') {
         .then((registration) => {
           if (!registration) {
             // Only register if not already registered
-            return navigator.serviceWorker.register('/firebase-messaging-sw.js')
+            return navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+              scope: '/'
+            })
               .then((registration) => {
                 console.log('Service Worker registered with scope:', registration.scope);
                 
@@ -75,21 +77,29 @@ if (typeof window !== 'undefined') {
       if (payload.notification) {
         const { title, body } = payload.notification;
         if (title && body) {
-          const notificationOptions = {
-            body,
-            icon: '/icon.png',
-            badge: '/icon.png',
-            tag: messageId, // Use messageId as tag to prevent duplicate notifications
-            requireInteraction: true,
-            actions: [
-              {
-                action: 'open',
-                title: 'Open'
-              }
-            ]
-          };
-          
-          new Notification(title, notificationOptions);
+          // Check if notification permission is granted
+          if (Notification.permission === 'granted') {
+            const notificationOptions = {
+              body,
+              icon: '/icon.png',
+              badge: '/icon.png',
+              tag: messageId, // Use messageId as tag to prevent duplicate notifications
+              requireInteraction: true,
+              actions: [
+                {
+                  action: 'open',
+                  title: 'Open'
+                }
+              ],
+              data: payload.data || {} // Include any additional data
+            };
+            
+            // Check if a notification with this tag already exists
+            const existingNotification = document.querySelector(`[data-notification-tag="${messageId}"]`);
+            if (!existingNotification) {
+              new Notification(title, notificationOptions);
+            }
+          }
         }
       }
     });
