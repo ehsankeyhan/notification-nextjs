@@ -5,6 +5,15 @@ import path from 'path'
 
 const TOKENS_FILE = path.join(process.cwd(), 'public/tokens.json')
 
+interface TokenData {
+  token: string;
+  addedAt: string;
+}
+
+interface TokensFile {
+  tokens: TokenData[];
+}
+
 // Ensure the tokens file exists with initial structure
 async function ensureTokensFile() {
   try {
@@ -19,10 +28,10 @@ export async function subscribeUser(token: string) {
   try {
     await ensureTokensFile()
     const data = await fs.readFile(TOKENS_FILE, 'utf-8')
-    const tokens = JSON.parse(data)
+    const tokens: TokensFile = JSON.parse(data)
     
     // Check if token already exists
-    const existingTokenIndex = tokens.tokens.findIndex((t: any) => t.token === token)
+    const existingTokenIndex = tokens.tokens.findIndex((t: TokenData) => t.token === token)
     
     if (existingTokenIndex === -1) {
       // Add new token with timestamp
@@ -47,9 +56,9 @@ export async function unsubscribeUser(token: string) {
   try {
     await ensureTokensFile()
     const data = await fs.readFile(TOKENS_FILE, 'utf-8')
-    const tokens = JSON.parse(data)
+    const tokens: TokensFile = JSON.parse(data)
     
-    tokens.tokens = tokens.tokens.filter((t: any) => t.token !== token)
+    tokens.tokens = tokens.tokens.filter((t: TokenData) => t.token !== token)
     await fs.writeFile(TOKENS_FILE, JSON.stringify(tokens, null, 2))
     
     return { success: true }
@@ -63,8 +72,8 @@ export async function getAllTokens() {
   try {
     await ensureTokensFile()
     const data = await fs.readFile(TOKENS_FILE, 'utf-8')
-    const tokens = JSON.parse(data)
-    return { success: true, tokens: tokens.tokens.map((t: any) => t.token) }
+    const tokens: TokensFile = JSON.parse(data)
+    return { success: true, tokens: tokens.tokens.map((t: TokenData) => t.token) }
   } catch (error) {
     console.error('Error reading tokens:', error)
     return { success: false, error: 'Failed to read tokens' }
