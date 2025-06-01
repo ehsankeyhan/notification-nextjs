@@ -20,17 +20,14 @@ const messaging = firebase.messaging();
 // Keep track of shown notifications to prevent duplicates
 const shownNotifications = new Set();
 
-// Handle background messages
-messaging.onBackgroundMessage((payload) => {
-  console.log('Received background message:', payload);
-
-  // Create a unique message ID
-  const messageId = payload.data?.messageId || payload.messageId || JSON.stringify(payload);
-
+// Function to show notification
+function showNotification(title, options) {
+  const messageId = options.tag;
+  
   // Check if we've already shown this notification
   if (shownNotifications.has(messageId)) {
     console.log('Duplicate notification, skipping:', messageId);
-    return;
+    return Promise.resolve();
   }
 
   // Add to shown notifications
@@ -42,13 +39,22 @@ messaging.onBackgroundMessage((payload) => {
     shownNotifications.delete(oldestNotification);
   }
 
-  // Customize notification here
+  return self.registration.showNotification(title, options);
+}
+
+// Handle background messages from Firebase
+messaging.onBackgroundMessage((payload) => {
+  console.log('Received background message:', payload);
+
+  // Create a unique message ID
+  const messageId = payload.data?.messageId || payload.messageId || JSON.stringify(payload);
+
   const notificationTitle = payload.notification?.title || 'New Notification';
   const notificationOptions = {
     body: payload.notification?.body || '',
     icon: '/icon.png',
     badge: '/icon.png',
-    tag: messageId, // Use messageId as tag to prevent duplicate notifications
+    tag: messageId,
     requireInteraction: true,
     actions: [
       {
@@ -56,11 +62,45 @@ messaging.onBackgroundMessage((payload) => {
         title: 'Open'
       }
     ],
-    data: payload.data || {} // Include any additional data
+    data: payload.data || {}
   };
 
-  // Show the notification
-  return self.registration.showNotification(notificationTitle, notificationOptions);
+  return showNotification(notificationTitle, notificationOptions);
+});
+
+// Handle push event (for Safari and iOS PWA)
+self.addEventListener('push', function(event) {
+  console.log('Service Worker: Push event received');
+  
+  if (event.data) {
+    try {
+      const data = event.data.json();
+      console.log('Service Worker: Push data:', data);
+      
+      // Create a unique message ID
+      const messageId = data.data?.messageId || data.messageId || JSON.stringify(data);
+      
+      const notificationTitle = data.notification?.title || 'New Message';
+      const notificationOptions = {
+        body: data.notification?.body || '',
+        icon: '/icon.png',
+        badge: '/icon.png',
+        tag: messageId,
+        data: data.data || {},
+        requireInteraction: true,
+        actions: [
+          {
+            action: 'open',
+            title: 'Open'
+          }
+        ]
+      };
+
+      event.waitUntil(showNotification(notificationTitle, notificationOptions));
+    } catch (error) {
+      console.error('Service Worker: Error processing push data:', error);
+    }
+  }
 });
 
 // Handle notification click
@@ -85,46 +125,6 @@ self.addEventListener('notificationclick', (event) => {
       }
     })
   );
-});
-
-// Handle push event (for Safari)
-self.addEventListener('push', function(event) {
-  console.log('Service Worker: Push event received');
-  
-  if (event.data) {
-    try {
-      const data = event.data.json();
-      console.log('Service Worker: Push data:', data);
-      
-      const notificationTitle = data.notification?.title || 'New Message';
-      const notificationOptions = {
-        body: data.notification?.body || 'You have a new message',
-        icon: '/icon.png',
-        badge: '/icon.png',
-        tag: 'notification-1',
-        data: data.data || {},
-        requireInteraction: true,
-        actions: [
-          {
-            action: 'open',
-            title: 'Open'
-          }
-        ]
-      };
-
-      event.waitUntil(
-        self.registration.showNotification(notificationTitle, notificationOptions)
-          .then(() => {
-            console.log('Service Worker: Push notification shown successfully');
-          })
-          .catch(error => {
-            console.error('Service Worker: Error showing push notification:', error);
-          })
-      );
-    } catch (error) {
-      console.error('Service Worker: Error processing push data:', error);
-    }
-  }
 });
 
 // Log when the service worker is installed

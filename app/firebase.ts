@@ -18,6 +18,11 @@ const app = initializeApp(firebaseConfig);
 let messaging: Messaging | null = null;
 if (typeof window !== 'undefined') {
   try {
+    // Check if we're in iOS PWA
+    const isIOSPWA = /iPad|iPhone|iPod/.test(navigator.userAgent) && 
+                    window.matchMedia('(display-mode: standalone)').matches;
+    console.log('Is iOS PWA:', isIOSPWA);
+
     // Register service worker first
     if ('serviceWorker' in navigator) {
       // Check if service worker is already registered
@@ -83,7 +88,7 @@ if (typeof window !== 'undefined') {
               body,
               icon: '/icon.png',
               badge: '/icon.png',
-              tag: messageId, // Use messageId as tag to prevent duplicate notifications
+              tag: messageId,
               requireInteraction: true,
               actions: [
                 {
@@ -91,13 +96,16 @@ if (typeof window !== 'undefined') {
                   title: 'Open'
                 }
               ],
-              data: payload.data || {} // Include any additional data
+              data: payload.data || {}
             };
             
-            // Check if a notification with this tag already exists
-            const existingNotification = document.querySelector(`[data-notification-tag="${messageId}"]`);
-            if (!existingNotification) {
-              new Notification(title, notificationOptions);
+            // For iOS PWA, we'll let the service worker handle the notification
+            if (!isIOSPWA) {
+              // Check if a notification with this tag already exists
+              const existingNotification = document.querySelector(`[data-notification-tag="${messageId}"]`);
+              if (!existingNotification) {
+                new Notification(title, notificationOptions);
+              }
             }
           }
         }
