@@ -21,11 +21,21 @@ export async function subscribeUser(token: string) {
     const data = await fs.readFile(TOKENS_FILE, 'utf-8')
     const tokens = JSON.parse(data)
     
-    if (!tokens.tokens.includes(token)) {
-      tokens.tokens.push(token)
-      await fs.writeFile(TOKENS_FILE, JSON.stringify(tokens, null, 2))
+    // Check if token already exists
+    const existingTokenIndex = tokens.tokens.findIndex((t: any) => t.token === token)
+    
+    if (existingTokenIndex === -1) {
+      // Add new token with timestamp
+      tokens.tokens.push({
+        token,
+        addedAt: new Date().toISOString()
+      })
+    } else {
+      // Update timestamp for existing token
+      tokens.tokens[existingTokenIndex].addedAt = new Date().toISOString()
     }
     
+    await fs.writeFile(TOKENS_FILE, JSON.stringify(tokens, null, 2))
     return { success: true }
   } catch (error) {
     console.error('Error saving token:', error)
@@ -39,7 +49,7 @@ export async function unsubscribeUser(token: string) {
     const data = await fs.readFile(TOKENS_FILE, 'utf-8')
     const tokens = JSON.parse(data)
     
-    tokens.tokens = tokens.tokens.filter((t: string) => t !== token)
+    tokens.tokens = tokens.tokens.filter((t: any) => t.token !== token)
     await fs.writeFile(TOKENS_FILE, JSON.stringify(tokens, null, 2))
     
     return { success: true }
@@ -54,7 +64,7 @@ export async function getAllTokens() {
     await ensureTokensFile()
     const data = await fs.readFile(TOKENS_FILE, 'utf-8')
     const tokens = JSON.parse(data)
-    return { success: true, tokens: tokens.tokens }
+    return { success: true, tokens: tokens.tokens.map((t: any) => t.token) }
   } catch (error) {
     console.error('Error reading tokens:', error)
     return { success: false, error: 'Failed to read tokens' }

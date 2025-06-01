@@ -20,15 +20,24 @@ if (typeof window !== 'undefined') {
   try {
     // Register service worker first
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/firebase-messaging-sw.js')
+      // Check if service worker is already registered
+      navigator.serviceWorker.getRegistration()
         .then((registration) => {
-          console.log('Service Worker registered with scope:', registration.scope);
-          
-          // Check if the service worker is active
-          if (registration.active) {
-            console.log('Service Worker is active');
+          if (!registration) {
+            // Only register if not already registered
+            return navigator.serviceWorker.register('/firebase-messaging-sw.js')
+              .then((registration) => {
+                console.log('Service Worker registered with scope:', registration.scope);
+                
+                // Check if the service worker is active
+                if (registration.active) {
+                  console.log('Service Worker is active');
+                } else {
+                  console.log('Service Worker is not active yet');
+                }
+              });
           } else {
-            console.log('Service Worker is not active yet');
+            console.log('Service Worker already registered');
           }
         })
         .catch((error) => {
@@ -39,9 +48,28 @@ if (typeof window !== 'undefined') {
     messaging = getMessaging(app);
     console.log('Firebase messaging initialized successfully');
     
-    // Set up message listener
+    // Set up message listener with deduplication
+    const processedMessages = new Set();
     onMessage(messaging, (payload) => {
       console.log('Message received in foreground:', payload);
+      
+      // Create a unique message ID
+      const messageId = payload.data?.messageId || payload.messageId || JSON.stringify(payload);
+      
+      // Check if we've already processed this message
+      if (processedMessages.has(messageId)) {
+        console.log('Duplicate message received, skipping:', messageId);
+        return;
+      }
+      
+      // Add message to processed set
+      processedMessages.add(messageId);
+      
+      // Clean up old message IDs (keep last 100)
+      if (processedMessages.size > 100) {
+        const oldestMessage = Array.from(processedMessages)[0];
+        processedMessages.delete(oldestMessage);
+      }
       
       // Show notification manually for foreground messages
       if (payload.notification) {
@@ -51,7 +79,7 @@ if (typeof window !== 'undefined') {
             body,
             icon: '/icon.png',
             badge: '/icon.png',
-            tag: 'notification-1',
+            tag: messageId, // Use messageId as tag to prevent duplicate notifications
             requireInteraction: true,
             actions: [
               {
