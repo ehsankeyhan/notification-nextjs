@@ -18,10 +18,10 @@ const app = initializeApp(firebaseConfig);
 let messaging: Messaging | null = null;
 if (typeof window !== 'undefined') {
   try {
-    // Check if we're in iOS PWA
-    const isIOSPWA = /iPad|iPhone|iPod/.test(navigator.userAgent) && 
-                    window.matchMedia('(display-mode: standalone)').matches;
-    console.log('Is iOS PWA:', isIOSPWA);
+    // Check if we're in iOS standalone mode
+    const isIOSStandalone = /iPad|iPhone|iPod/.test(navigator.userAgent) && 
+                           window.matchMedia('(display-mode: standalone)').matches;
+    console.log('Is iOS Standalone:', isIOSStandalone);
 
     // Register service worker first
     if ('serviceWorker' in navigator) {
@@ -96,11 +96,14 @@ if (typeof window !== 'undefined') {
                   title: 'Open'
                 }
               ],
-              data: payload.data || {}
+              data: {
+                ...payload.data,
+                from: 'firebase' // Add source identifier
+              }
             };
             
-            // For iOS PWA, we'll let the service worker handle the notification
-            if (!isIOSPWA) {
+            // For iOS standalone mode, we'll let the service worker handle the notification
+            if (!isIOSStandalone) {
               // Check if a notification with this tag already exists
               const existingNotification = document.querySelector(`[data-notification-tag="${messageId}"]`);
               if (!existingNotification) {

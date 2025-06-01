@@ -80,23 +80,27 @@ self.addEventListener('push', function(event) {
       // Create a unique message ID
       const messageId = data.data?.messageId || data.messageId || JSON.stringify(data);
       
-      const notificationTitle = data.notification?.title || 'New Message';
-      const notificationOptions = {
-        body: data.notification?.body || '',
-        icon: '/icon.png',
-        badge: '/icon.png',
-        tag: messageId,
-        data: data.data || {},
-        requireInteraction: true,
-        actions: [
-          {
-            action: 'open',
-            title: 'Open'
-          }
-        ]
-      };
+      // For iOS standalone mode, we'll only show the notification if it's from the push event
+      // and not from Firebase background message
+      if (data.from === 'push') {
+        const notificationTitle = data.notification?.title || 'New Message';
+        const notificationOptions = {
+          body: data.notification?.body || '',
+          icon: '/icon.png',
+          badge: '/icon.png',
+          tag: messageId,
+          data: data.data || {},
+          requireInteraction: true,
+          actions: [
+            {
+              action: 'open',
+              title: 'Open'
+            }
+          ]
+        };
 
-      event.waitUntil(showNotification(notificationTitle, notificationOptions));
+        event.waitUntil(showNotification(notificationTitle, notificationOptions));
+      }
     } catch (error) {
       console.error('Service Worker: Error processing push data:', error);
     }
