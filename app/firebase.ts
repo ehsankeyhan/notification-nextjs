@@ -11,157 +11,104 @@ const firebaseConfig = {
   measurementId: "G-3095W4P676"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize messaging only on the client side
 let messaging: Messaging | null = null;
+
 if (typeof window !== 'undefined') {
   try {
-    // Check if we're in iOS standalone mode
-    const isIOSStandalone = /iPad|iPhone|iPod/.test(navigator.userAgent) && 
-                           window.matchMedia('(display-mode: standalone)').matches;
+    const isIOSStandalone =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) &&
+      window.matchMedia('(display-mode: standalone)').matches;
+
     console.log('Is iOS Standalone:', isIOSStandalone);
 
-    // Register service worker first
     if ('serviceWorker' in navigator) {
-      // Check if service worker is already registered
-      navigator.serviceWorker.getRegistration()
-        .then((registration) => {
-          if (!registration) {
-            // Only register if not already registered
-            return navigator.serviceWorker.register('/firebase-messaging-sw.js', {
-              scope: '/'
-            })
-              .then((registration) => {
-                console.log('Service Worker registered with scope:', registration.scope);
-                
-                // Check if the service worker is active
-                if (registration.active) {
-                  console.log('Service Worker is active');
-                } else {
-                  console.log('Service Worker is not active yet');
-                }
-              });
-          } else {
-            console.log('Service Worker already registered');
-          }
-        })
-        .catch((error) => {
-          console.error('Service Worker registration failed:', error);
-        });
+      navigator.serviceWorker.getRegistration().then((registration) => {
+        if (!registration) {
+          navigator.serviceWorker
+            .register('/firebase-messaging-sw.js', { scope: '/' })
+            .then((reg) => console.log('Service Worker registered:', reg.scope))
+            .catch((err) => console.error('Service Worker registration failed:', err));
+        } else {
+          console.log('Service Worker already registered');
+        }
+      });
     }
 
     messaging = getMessaging(app);
-    console.log('Firebase messaging initialized successfully');
-    
-    // Set up message listener with deduplication
-    const processedMessages = new Set();
+    console.log('Firebase messaging initialized');
+
+    const processedMessages = new Set<string>();
+
     onMessage(messaging, (payload) => {
-      console.log('Message received in foreground:', payload);
-      
-      // Create a unique message ID
-      const messageId = payload.data?.messageId || payload.messageId || JSON.stringify(payload);
-      
-      // Check if we've already processed this message
+      console.log('Foreground message:', payload);
+
+      const messageId =
+        payload.data?.messageId || payload.messageId || JSON.stringify(payload);
+
       if (processedMessages.has(messageId)) {
-        console.log('Duplicate message received, skipping:', messageId);
+        console.log('Duplicate message skipped:', messageId);
         return;
       }
-      
-      // Add message to processed set
+
       processedMessages.add(messageId);
-      
-      // Clean up old message IDs (keep last 100)
-      if (processedMessages.size > 100) {
-        const oldestMessage = Array.from(processedMessages)[0];
-        processedMessages.delete(oldestMessage);
+      // if (processedMessages.size > 100) {
+      //   processedMessages.delete(processedMessages.values().next().value);
+      // }
+
+      const { title, body } = payload.notification || {};
+      if (title && body && Notification.permission === 'granted' && !isIOSStandalone) {
+        new Notification(title as string, {
+          body,
+          icon: '/icon.png',
+          badge: '/icon.png',
+          tag: messageId || '', // ensure it's a string
+          requireInteraction: true,
+          data: { ...payload.data, from: 'firebase' }
+        });
       }
       
-      // Show notification manually for foreground messages
-      if (payload.notification) {
-        const { title, body } = payload.notification;
-        if (title && body) {
-          // Check if notification permission is granted
-          if (Notification.permission === 'granted') {
-            const notificationOptions = {
-              body,
-              icon: '/icon.png',
-              badge: '/icon.png',
-              tag: messageId,
-              requireInteraction: true,
-              actions: [
-                {
-                  action: 'open',
-                  title: 'Open'
-                }
-              ],
-              data: {
-                ...payload.data,
-                from: 'firebase' // Add source identifier
-              }
-            };
-            
-            // For iOS standalone mode, we'll let the service worker handle the notification
-            if (!isIOSStandalone) {
-              // Check if a notification with this tag already exists
-              const existingNotification = document.querySelector(`[data-notification-tag="${messageId}"]`);
-              if (!existingNotification) {
-                new Notification(title, notificationOptions);
-              }
-            }
-          }
-        }
-      }
     });
   } catch (error) {
-    console.error('Error initializing Firebase messaging:', error);
+    console.error('Firebase messaging init error:', error);
   }
 }
 
-export const getFCMToken = async () => {
+export const getFCMToken = async (): Promise<string | null> => {
   if (!messaging) {
     console.log('Messaging not initialized');
     return null;
   }
-  
-  try {
-    // Check if we're in Safari
-    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-    console.log('Browser is Safari:', isSafari);
 
-    // Get service worker registration
+  try {
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    console.log('Is Safari:', isSafari);
+
     const registration = await navigator.serviceWorker.getRegistration();
     if (!registration) {
       console.error('No service worker registration found');
       return null;
     }
 
-    // For Safari, ensure the service worker is active
     if (isSafari && !registration.active) {
-      console.log('Waiting for service worker to become active...');
-      await new Promise(resolve => {
-        registration.addEventListener('activate', resolve, { once: true });
-      });
+      console.log('Waiting for service worker to activate...');
+      await new Promise((resolve) =>
+        registration.addEventListener('activate', resolve, { once: true })
+      );
     }
-    
-    const currentToken = await getToken(messaging, {
+
+    const token = await getToken(messaging, {
       vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
       serviceWorkerRegistration: registration
     });
-    
-    if (currentToken) {
-      console.log('FCM Token:', currentToken);
-    } else {
-      console.log('No FCM token available');
-    }
-    
-    return currentToken;
+
+    console.log(token ? 'FCM Token:' : 'No FCM token available', token);
+    return token;
   } catch (error) {
     console.error('Error getting FCM token:', error);
-    // Log more detailed error information
     if (error instanceof Error) {
-      console.error('Error details:', {
+      console.error({
         name: error.name,
         message: error.message,
         stack: error.stack
@@ -171,4 +118,4 @@ export const getFCMToken = async () => {
   }
 };
 
-export { messaging }; 
+export { messaging };
