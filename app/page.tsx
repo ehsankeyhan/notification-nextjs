@@ -1,15 +1,8 @@
 'use client'
 import { useEffect, useState } from "react"
 import { PushNotificationManager } from "./PushNotificationManager"
-import { messaging } from "./firebase"
-import { onMessage, MessagePayload } from "firebase/messaging"
 
-// Define types for notification data
-interface NotificationData {
-  timestamp: string;
-  source: 'firebase' | 'service-worker';
-  data: MessagePayload | Record<string, unknown>;
-}
+
 
 function InstallPrompt() {
   const [isIOS, setIsIOS] = useState(false)
