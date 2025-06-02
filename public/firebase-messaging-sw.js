@@ -1,9 +1,10 @@
-
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
+importScripts('https://cdn.jsdelivr.net/npm/dexie@3.2.4/dist/dexie.min.js');
 
-console.log('Service Worker: Starting initialization');
+console.log('Service Worker: Initializing Firebase');
 
+// Initialize Firebase
 firebase.initializeApp({
   apiKey: "AIzaSyDcXhxdqvehmZ1XRugk1gfmySx4fSfxiv4",
   authDomain: "cassett-ad190.firebaseapp.com",
@@ -14,42 +15,18 @@ firebase.initializeApp({
   measurementId: "G-3095W4P676"
 });
 
-// const messaging = firebase.messaging();
+// Initialize Messaging
+const messaging = firebase.messaging();
 
-// // Handle background messages
-// messaging.onBackgroundMessage((payload) => {
-//   const notification = payload.notification;
-//   const options = {
-//     body: notification?.body,
-//     icon: '/icon.png', // replace with your icon path
-//   };
+// Set up Dexie database
 
-//   self.registration.showNotification(notification?.title || 'Notification', options);
-// });
-// firebase.messaging().onBackgroundMessage((payload) => {
-//   console.log(
-//     '[firebase-messaging-sw.js] Received background message ',
-//     payload
-//   );
-//   // Customize notification here
-//   const notificationTitle = 'Background Message Title';
-//   const notificationOptions = {
-//     body: 'Background Message body.',
-//     icon: payload.notification.image
-//   };
+// Handle background message
+messaging.onBackgroundMessage(function (payload) {
+  const db = new Dexie('notification');
+  db.version(1).stores({ notif: '++id,item' });
 
-//   self.registration.showNotification(notificationTitle, notificationOptions);
-// });
-firebase.messaging().onBackgroundMessage( function ({ data,notification }) {
-  console.log(data,notification);
-  
-  if (notification && notification.title) {
-    const notificationTitle = data.title;
-    const notificationOptions = {
-      body: notification.body,
-      icon: notification.image
-    };
+  const notifItem = { id: 1, item: payload };
+  db.notif.put(notifItem);
 
-    self.registration?.showNotification(notificationTitle, notificationOptions);
-  }
-})
+  console.log("Received background message ", payload);
+});
