@@ -4,9 +4,22 @@ import { useEffect, useState } from 'react';
 import Dexie, { Table } from 'dexie';
 import Image from 'next/image';
 
+interface NotificationItem {
+  notification?: {
+    title?: string;
+    body?: string;
+    image?: string;
+  };
+  data?: {
+    message?: string;
+    image?: string;
+    imageUrl?: string;
+  };
+}
+
 interface Notification {
   id?: number;
-  item: any;
+  item: NotificationItem;
   timestamp: string;
 }
 
